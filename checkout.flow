@@ -1,0 +1,54 @@
+# Project: adams
+# Date: 2026-02-05 13:37:40
+# User: fracpete
+# Charset: UTF-8
+# Modules: adams-core,adams-git,adams-groovy,adams-spreadsheet
+#
+adams.flow.control.Flow -annotation "checks out/updates the source code" -execute-on-error adams.flow.control.postflowexecution.Null -execute-on-finish adams.flow.control.postflowexecution.Null -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
+ adams.flow.standalone.CallableActors
+  adams.flow.sink.Display -display-type adams.flow.core.displaytype.Default -writer adams.data.io.output.NullWriter
+ adams.flow.standalone.SetVariable -name config -var-name config -var-value @{flow_dir}/config -expand-value true
+ adams.flow.standalone.SetVariable -name src -var-name src -var-value @{flow_dir}/src -expand-value true
+ adams.flow.standalone.SetVariable -name git_cmd -var-name git_cmd -var-value git
+ adams.flow.standalone.SetVariable -name ssh_cmd -var-name ssh_cmd -var-value ssh
+ adams.flow.source.Start
+ adams.flow.control.Trigger -name "load custom settings"
+  adams.flow.source.Variable -var-name flow_filename_long -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.Convert -conversion "adams.data.conversion.ReplaceFileExtension -extension .props -use-forward-slashes true"
+  adams.flow.transformer.SetVariable -var-name settings_props
+  adams.flow.control.ConditionalTrigger -name "custom props?" -condition "adams.flow.condition.bool.FileExists -file @{settings_props} -generator adams.core.io.NullFilenameGenerator"
+   adams.flow.source.Variable -var-name settings_props -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.PropertiesFileReader
+   adams.flow.transformer.PropertiesToVariables -regexp (git_cmd|ssh_cmd)
+ adams.flow.control.ConditionalTrigger -name "create src dir?" -condition "adams.flow.condition.bool.Not -condition \"adams.flow.condition.bool.DirectoryExists -directory @{src}\""
+  adams.flow.standalone.MakeDir -dir @{src}
+ adams.flow.control.Trigger -name iterate
+  adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{config} -regexp .*\\\\.props -sorting SORT_BY_NAME" -use-forward-slashes true
+  adams.flow.control.Tee -name info
+   adams.flow.transformer.BaseName
+   adams.flow.transformer.StringInsert -position first -value \\n
+   adams.flow.sink.CallableSink -callable Display
+  adams.flow.control.Tee -name "clean up"
+   adams.flow.transformer.DeleteVariable -type REGEXP -regexp (repo|dir|sshkey|zip)
+  adams.flow.transformer.PropertiesFileReader
+  adams.flow.transformer.PropertiesToVariables
+  adams.flow.transformer.SetVariable -var-name target -var-value @{src}/@{dir} -expand-value true
+  adams.flow.control.IfThenElse -name "project already checked out?" -condition "adams.flow.condition.bool.DirectoryExists -directory @{target}"
+   adams.flow.control.Trigger -name then
+    adams.flow.standalone.SetVariable -name work_dir -var-name work_dir -var-value @{src}/@{dir} -expand-value true
+    adams.flow.source.Command -cmd "@{git_cmd} pull" -working-directory @{work_dir} -variable true -output-type BOTH
+    adams.flow.transformer.StringIndent -indentation " " -num-times 4
+    adams.flow.sink.CallableSink -callable Display
+   adams.flow.control.Sequence -name else
+    adams.flow.control.Trigger -name "reset ssh"
+     adams.flow.standalone.SetVariable -name reset -var-name ssh -var-value ""
+    adams.flow.control.IfThenElse -condition "adams.flow.condition.bool.HasVariable -variable-name sshkey"
+     adams.flow.control.Trigger -name then
+      adams.flow.standalone.SetVariable -var-name ssh -var-value "@{ssh_cmd} -i @{ssh_key}" -expand-value true
+      adams.flow.source.Command -cmd "@{git_cmd} clone @{repo} @{src}/@{dir}" -env-var GIT_SSH_COMMAND=@{ssh} -variable true -output-type BOTH
+      adams.flow.transformer.StringIndent -indentation " " -num-times 4
+      adams.flow.sink.CallableSink -callable Display
+     adams.flow.control.Trigger -name else
+      adams.flow.source.Command -cmd "@{git_cmd} clone @{repo} @{src}/@{dir}" -variable true -output-type BOTH
+      adams.flow.transformer.StringIndent -indentation " " -num-times 4
+      adams.flow.sink.CallableSink -callable Display
