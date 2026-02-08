@@ -15,8 +15,7 @@ The following ADAMS application can be used for running the flows:
 ## Directory structure
 
 ```
-checkout.flow
-build.flow
+execute.flow
 |
 +- config
 |  |
@@ -30,24 +29,16 @@ build.flow
 
 ## Flows
 
-* [checkout.flow](checkout.flow) - performs the checkout/update of the source code
-* [build.flow](build.flow) - builds the source code
+* [execute.flow](execute.flow) - performs the checkout/update/build of the source code
 
-### checkout.flow
+### execute.flow
 
-You can override the following parameters by adding a `checkout.props`
+You can override the following parameters by adding a `execute.props`
 file alongside the flow:
 
 * `git_cmd` - the git executable and its options to use (e.g., `git` or `/some/where/git -v`)
 * `ssh_cmd` - the ssh executable and its options to use (e.g., `ssh`); 
   `-i SSH_KEY` gets added automatically
-
-
-### build.flow
-
-You can override the default settings by adding a `build.props`
-file alongside the flow:
-
 * `build_cmd` - the Maven executable and its options to use for building the projects
   (e.g., `mvn clean install -DskipTests=true -Dstyle.color=never`)
 * `build_output` - the regexp for locating the build output in the project dirs 

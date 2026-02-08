@@ -1,15 +1,17 @@
 # Project: adams
-# Date: 2026-02-05 13:34:03
+# Date: 2026-02-09 10:24:44
 # User: fracpete
 # Charset: UTF-8
-# Modules: adams-core,adams-git,adams-groovy,adams-spreadsheet
+# Modules: adams-core,adams-groovy,adams-spreadsheet
 #
-adams.flow.control.Flow -annotation "builds the source code" -execute-on-error adams.flow.control.postflowexecution.Null -execute-on-finish adams.flow.control.postflowexecution.Null -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
+adams.flow.control.Flow -annotation "checks out/updates the source code" -execute-on-error adams.flow.control.postflowexecution.Null -execute-on-finish adams.flow.control.postflowexecution.Null -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
  adams.flow.standalone.CallableActors
   adams.flow.sink.Display -display-type adams.flow.core.displaytype.Default -writer adams.data.io.output.NullWriter
  adams.flow.standalone.SetVariable -name config -var-name config -var-value @{flow_dir}/config -expand-value true
  adams.flow.standalone.SetVariable -name src -var-name src -var-value @{flow_dir}/src -expand-value true
  adams.flow.standalone.SetVariable -name bin -var-name bin -var-value @{flow_dir}/bin -expand-value true
+ adams.flow.standalone.SetVariable -name git_cmd -var-name git_cmd -var-value git
+ adams.flow.standalone.SetVariable -name ssh_cmd -var-name ssh_cmd -var-value ssh
  adams.flow.standalone.SetVariable -name "clean mvn repo" -var-name clean_mvn_repo -var-value false
  adams.flow.standalone.SetVariable -name build_cmd -var-name build_cmd -var-value "mvn clean install -DskipTests=true -Dstyle.color=never"
  adams.flow.standalone.SetVariable -name build_output -var-name build_output -var-value .*-bin.zip
@@ -21,10 +23,12 @@ adams.flow.control.Flow -annotation "builds the source code" -execute-on-error a
   adams.flow.control.ConditionalTrigger -name "custom props?" -condition "adams.flow.condition.bool.FileExists -file @{settings_props} -generator adams.core.io.NullFilenameGenerator"
    adams.flow.source.Variable -var-name settings_props -conversion adams.data.conversion.StringToString
    adams.flow.transformer.PropertiesFileReader
-   adams.flow.transformer.PropertiesToVariables -regexp (build_cmd|build_output|clean_mvn_repo)
+   adams.flow.transformer.PropertiesToVariables -regexp (git_cmd|ssh_cmd|build_cmd|build_output|clean_mvn_repo)
  adams.flow.control.Tee -name "global params"
   adams.flow.transformer.SetVariable -name global_build_output -var-name global_build_output -var-value @{build_output}
   adams.flow.transformer.SetVariable -name global_build_cmd -var-name global_build_cmd -var-value @{build_cmd}
+ adams.flow.control.ConditionalTrigger -name "create src dir?" -condition "adams.flow.condition.bool.Not -condition \"adams.flow.condition.bool.DirectoryExists -directory @{src}\""
+  adams.flow.standalone.MakeDir -dir @{src}
  adams.flow.control.ConditionalTrigger -name "create bin dir?" -condition "adams.flow.condition.bool.Not -condition \"adams.flow.condition.bool.DirectoryExists -directory @{bin}\""
   adams.flow.standalone.MakeDir -dir @{src}
  adams.flow.control.ConditionalTrigger -name "clean mvn repo?" -condition "adams.flow.condition.bool.Expression -expression \"@{clean_mvn_repo} = true\""
@@ -36,13 +40,34 @@ adams.flow.control.Flow -annotation "builds the source code" -execute-on-error a
    adams.flow.transformer.StringInsert -position first -value \\n
    adams.flow.sink.CallableSink -callable Display
   adams.flow.control.Tee -name "clean up"
-   adams.flow.transformer.DeleteVariable -type REGEXP -regexp (repo|dir|sshkey|build_cmd|build_output)
+   adams.flow.transformer.DeleteVariable -name "DeleteVariable (2)" -type REGEXP -regexp (repo|dir|ssh_key|build_cmd|build_output)
   adams.flow.control.Tee -name "reset with global params"
    adams.flow.transformer.SetVariable -name "reset build_output" -var-name build_output -var-value @{global_build_output}
    adams.flow.transformer.SetVariable -name "reset build_cmd" -var-name build_cmd -var-value @{global_build_cmd}
   adams.flow.transformer.PropertiesFileReader
   adams.flow.transformer.PropertiesToVariables
   adams.flow.transformer.SetVariable -name "current project dir" -var-name project_dir -var-value @{src}/@{dir} -value-type FILE_FORWARD_SLASHES -expand-value true
+  adams.flow.control.Trigger -name "update code"
+   adams.flow.source.Start
+   adams.flow.control.IfThenElse -name "project already checked out?" -condition "adams.flow.condition.bool.DirectoryExists -directory @{project_dir}"
+    adams.flow.control.Trigger -name then
+     adams.flow.standalone.SetVariable -name work_dir -var-name work_dir -var-value @{src}/@{dir} -expand-value true
+     adams.flow.source.Command -cmd "@{git_cmd} pull" -working-directory @{work_dir} -variable true -output-type BOTH
+     adams.flow.transformer.StringIndent -indentation " " -num-times 4
+     adams.flow.sink.CallableSink -callable Display
+    adams.flow.control.Sequence -name else
+     adams.flow.control.Trigger -name "reset ssh"
+      adams.flow.standalone.SetVariable -name reset -var-name ssh -var-value ""
+     adams.flow.control.IfThenElse -condition "adams.flow.condition.bool.HasVariable -variable-name sshkey"
+      adams.flow.control.Trigger -name then
+       adams.flow.standalone.SetVariable -var-name ssh -var-value "@{ssh_cmd} -i @{ssh_key}" -expand-value true
+       adams.flow.source.Command -cmd "@{git_cmd} clone @{repo} @{src}/@{dir}" -env-var GIT_SSH_COMMAND=@{ssh} -variable true -output-type BOTH
+       adams.flow.transformer.StringIndent -indentation " " -num-times 4
+       adams.flow.sink.CallableSink -callable Display
+      adams.flow.control.Trigger -name else
+       adams.flow.source.Command -cmd "@{git_cmd} clone @{repo} @{src}/@{dir}" -variable true -output-type BOTH
+       adams.flow.transformer.StringIndent -indentation " " -num-times 4
+       adams.flow.sink.CallableSink -callable Display
   adams.flow.control.Trigger -name build
    adams.flow.source.Command -cmd @{build_cmd} -working-directory @{project_dir} -variable true -output-type BOTH
    adams.flow.transformer.StringIndent -indentation " " -num-times 4
