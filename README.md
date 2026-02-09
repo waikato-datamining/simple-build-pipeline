@@ -89,3 +89,14 @@ execute them as follows:
 bin/exec.sh -input checkout.flow -headless
 bin/exec.sh -input build.flow -headless
 ```
+
+## Examples
+
+You can find some example configurations for ADAMS in the [examples](examples)
+directory. Simply transfer the ones starting with a number into the [config](config) 
+directory to kick off a build (assuming you have [Maven](https://maven.apache.org/) 
+installed).
+
+If you don't have LaTeX (e.g., [TeX Live](https://tug.org/texlive/)) installed, 
+you can use the [examples/execute-no-latex.props](examples/execute-no-latex.props)
+config as your `execute.props` config file to override the Maven build settings.

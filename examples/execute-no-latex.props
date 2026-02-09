@@ -1,0 +1,2 @@
+# the following skips tests and generates only dummy PDF manuals
+build_cmd=mvn clean install -DskipTests=true -Dstyle.color=never -Dlatex.dummyBuild=true
