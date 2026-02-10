@@ -1,12 +1,16 @@
 # Project: adams
-# Date: 2026-02-09 10:24:44
+# Date: 2026-02-11 11:48:05
 # User: fracpete
 # Charset: UTF-8
 # Modules: adams-core,adams-groovy,adams-spreadsheet
 #
 adams.flow.control.Flow -annotation "checks out/updates the source code" -execute-on-error adams.flow.control.postflowexecution.Null -execute-on-finish adams.flow.control.postflowexecution.Null -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
  adams.flow.standalone.CallableActors
-  adams.flow.sink.Display -display-type adams.flow.core.displaytype.Default -writer adams.data.io.output.NullWriter
+  adams.flow.control.IfThenElse -name log -condition "adams.flow.condition.bool.VariableFlagSet -variable-name is_headless"
+   adams.flow.control.Sequence -name then
+    adams.flow.sink.Console
+   adams.flow.control.Sequence -name else
+    adams.flow.sink.Display -display-type adams.flow.core.displaytype.Default -writer adams.data.io.output.NullWriter
  adams.flow.standalone.SetVariable -name config -var-name config -var-value @{flow_dir}/config -expand-value true
  adams.flow.standalone.SetVariable -name src -var-name src -var-value @{flow_dir}/src -expand-value true
  adams.flow.standalone.SetVariable -name bin -var-name bin -var-value @{flow_dir}/bin -expand-value true
@@ -38,7 +42,7 @@ adams.flow.control.Flow -annotation "checks out/updates the source code" -execut
   adams.flow.control.Tee -name info
    adams.flow.transformer.BaseName
    adams.flow.transformer.StringInsert -position first -value \\n
-   adams.flow.sink.CallableSink -callable Display
+   adams.flow.sink.CallableSink -callable log
   adams.flow.control.Tee -name "clean up"
    adams.flow.transformer.DeleteVariable -name "DeleteVariable (2)" -type REGEXP -regexp (repo|dir|ssh_key|build_cmd|build_output)
   adams.flow.control.Tee -name "reset with global params"
@@ -54,7 +58,7 @@ adams.flow.control.Flow -annotation "checks out/updates the source code" -execut
      adams.flow.standalone.SetVariable -name work_dir -var-name work_dir -var-value @{src}/@{dir} -expand-value true
      adams.flow.source.Command -cmd "@{git_cmd} pull" -working-directory @{work_dir} -variable true -output-type BOTH
      adams.flow.transformer.StringIndent -indentation " " -num-times 4
-     adams.flow.sink.CallableSink -callable Display
+     adams.flow.sink.CallableSink -callable log
     adams.flow.control.Sequence -name else
      adams.flow.control.Trigger -name "reset ssh"
       adams.flow.standalone.SetVariable -name reset -var-name ssh -var-value ""
@@ -63,17 +67,17 @@ adams.flow.control.Flow -annotation "checks out/updates the source code" -execut
        adams.flow.standalone.SetVariable -var-name ssh -var-value "@{ssh_cmd} -i @{ssh_key}" -expand-value true
        adams.flow.source.Command -cmd "@{git_cmd} clone @{repo} @{src}/@{dir}" -env-var GIT_SSH_COMMAND=@{ssh} -variable true -output-type BOTH
        adams.flow.transformer.StringIndent -indentation " " -num-times 4
-       adams.flow.sink.CallableSink -callable Display
+       adams.flow.sink.CallableSink -callable log
       adams.flow.control.Trigger -name else
        adams.flow.source.Command -cmd "@{git_cmd} clone @{repo} @{src}/@{dir}" -variable true -output-type BOTH
        adams.flow.transformer.StringIndent -indentation " " -num-times 4
-       adams.flow.sink.CallableSink -callable Display
+       adams.flow.sink.CallableSink -callable log
   adams.flow.control.Trigger -name build
    adams.flow.source.Command -cmd @{build_cmd} -working-directory @{project_dir} -variable true -output-type BOTH
    adams.flow.transformer.StringIndent -indentation " " -num-times 4
-   adams.flow.sink.CallableSink -callable Display
+   adams.flow.sink.CallableSink -callable log
   adams.flow.control.Trigger -name "copy build output files"
    adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{project_dir} -regexp @{build_output} -sorting SORT_BY_NAME -recursive true" -use-forward-slashes true
    adams.flow.transformer.CopyFile -target-dir @{bin}
    adams.flow.transformer.StringIndent -indentation " " -num-times 4
-   adams.flow.sink.CallableSink -callable Display
+   adams.flow.sink.CallableSink -callable log
