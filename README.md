@@ -36,9 +36,7 @@ execute.flow
 
 ## Flows
 
-* [execute.flow](execute.flow) - performs the checkout/update/build of the source code
-
-### execute.flow
+[execute.flow](execute.flow) performs the checkout/update/build of the source code.
 
 You can override the following parameters by adding a `execute.props`
 file alongside the flow:
