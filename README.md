@@ -82,12 +82,11 @@ allowing you to define a deterministic build order.
 
 ## Headless execution
 
-Of course, you don't have to execute the flows with the graphical interface. Instead, you can 
-execute them as follows:
+Of course, you don't have to execute the flow with the graphical interface. Instead, you can 
+execute it as follows:
 
 ```bash
-bin/exec.sh -input checkout.flow -headless
-bin/exec.sh -input build.flow -headless
+bin/exec.sh -input execute.flow -headless
 ```
 
 ## Examples
