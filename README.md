@@ -15,6 +15,8 @@ The following ADAMS application can be used for running the flows:
 ## Directory structure
 
 ```
+init.sh
+execute.sh
 execute.flow
 |
 +- config
@@ -25,6 +27,11 @@ execute.flow
 |
 +- bin  the build output gets copied here
 ```
+
+## Scripts
+
+* `init.sh` - downloads an ADAMS snapshot and sets it up
+* `execute.sh` - uses the downloaded ADAMS snapshot to execute the flow in headless mode
 
 
 ## Flows
@@ -79,15 +86,6 @@ You can also override the following global settings on a per-project basis:
 The `.props` config files get ordered by name and executed that way,
 allowing you to define a deterministic build order.
 
-
-## Headless execution
-
-Of course, you don't have to execute the flow with the graphical interface. Instead, you can 
-execute it as follows:
-
-```bash
-bin/exec.sh -input execute.flow -headless
-```
 
 ## Examples
 
