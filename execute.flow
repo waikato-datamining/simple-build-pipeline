@@ -1,19 +1,22 @@
 # Project: adams
-# Date: 2026-02-11 11:48:05
+# Date: 2026-02-11 12:41:23
 # User: fracpete
 # Charset: UTF-8
 # Modules: adams-core,adams-groovy,adams-spreadsheet
 #
 adams.flow.control.Flow -annotation "checks out/updates the source code" -execute-on-error adams.flow.control.postflowexecution.Null -execute-on-finish adams.flow.control.postflowexecution.Null -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
  adams.flow.standalone.CallableActors
-  adams.flow.control.IfThenElse -name log -condition "adams.flow.condition.bool.VariableFlagSet -variable-name is_headless"
+  adams.flow.control.IfThenElse -name log -condition "adams.flow.condition.bool.VariableFlagSet -variable-name has_gui"
    adams.flow.control.Sequence -name then
-    adams.flow.sink.Console
-   adams.flow.control.Sequence -name else
     adams.flow.sink.Display -display-type adams.flow.core.displaytype.Default -writer adams.data.io.output.NullWriter
+   adams.flow.control.Sequence -name else
+    adams.flow.sink.Console
+  adams.flow.control.Tee -name "project log file"
+   adams.flow.sink.DumpFile -output @{log_file} -append true
  adams.flow.standalone.SetVariable -name config -var-name config -var-value @{flow_dir}/config -expand-value true
  adams.flow.standalone.SetVariable -name src -var-name src -var-value @{flow_dir}/src -expand-value true
  adams.flow.standalone.SetVariable -name bin -var-name bin -var-value @{flow_dir}/bin -expand-value true
+ adams.flow.standalone.SetVariable -name log -var-name log -var-value @{flow_dir}/log -expand-value true
  adams.flow.standalone.SetVariable -name git_cmd -var-name git_cmd -var-value git
  adams.flow.standalone.SetVariable -name ssh_cmd -var-name ssh_cmd -var-value ssh
  adams.flow.standalone.SetVariable -name "clean mvn repo" -var-name clean_mvn_repo -var-value false
@@ -35,6 +38,8 @@ adams.flow.control.Flow -annotation "checks out/updates the source code" -execut
   adams.flow.standalone.MakeDir -dir @{src}
  adams.flow.control.ConditionalTrigger -name "create bin dir?" -condition "adams.flow.condition.bool.Not -condition \"adams.flow.condition.bool.DirectoryExists -directory @{bin}\""
   adams.flow.standalone.MakeDir -dir @{src}
+ adams.flow.control.ConditionalTrigger -name "create log dir?" -condition "adams.flow.condition.bool.Not -condition \"adams.flow.condition.bool.DirectoryExists -directory @{log}\""
+  adams.flow.standalone.MakeDir -dir @{log}
  adams.flow.control.ConditionalTrigger -name "clean mvn repo?" -condition "adams.flow.condition.bool.Expression -expression \"@{clean_mvn_repo} = true\""
   adams.flow.standalone.DeleteDir -dir ${HOME}/.m2/repository
  adams.flow.control.Trigger -name iterate
@@ -51,12 +56,16 @@ adams.flow.control.Flow -annotation "checks out/updates the source code" -execut
   adams.flow.transformer.PropertiesFileReader
   adams.flow.transformer.PropertiesToVariables
   adams.flow.transformer.SetVariable -name "current project dir" -var-name project_dir -var-value @{src}/@{dir} -value-type FILE_FORWARD_SLASHES -expand-value true
+  adams.flow.transformer.SetVariable -name "current log file" -var-name log_file -var-value @{log}/@{dir}.log -value-type FILE_FORWARD_SLASHES -expand-value true
+  adams.flow.control.ConditionalTrigger -name "delete old log file" -condition "adams.flow.condition.bool.FileExists -file @{log_file} -generator adams.core.io.NullFilenameGenerator"
+   adams.flow.standalone.DeleteFile -dir @{log_file}
   adams.flow.control.Trigger -name "update code"
    adams.flow.source.Start
    adams.flow.control.IfThenElse -name "project already checked out?" -condition "adams.flow.condition.bool.DirectoryExists -directory @{project_dir}"
     adams.flow.control.Trigger -name then
      adams.flow.standalone.SetVariable -name work_dir -var-name work_dir -var-value @{src}/@{dir} -expand-value true
      adams.flow.source.Command -cmd "@{git_cmd} pull" -working-directory @{work_dir} -variable true -output-type BOTH
+     adams.flow.transformer.CallableTransformer -callable "project log file"
      adams.flow.transformer.StringIndent -indentation " " -num-times 4
      adams.flow.sink.CallableSink -callable log
     adams.flow.control.Sequence -name else
@@ -66,18 +75,22 @@ adams.flow.control.Flow -annotation "checks out/updates the source code" -execut
       adams.flow.control.Trigger -name then
        adams.flow.standalone.SetVariable -var-name ssh -var-value "@{ssh_cmd} -i @{ssh_key}" -expand-value true
        adams.flow.source.Command -cmd "@{git_cmd} clone @{repo} @{src}/@{dir}" -env-var GIT_SSH_COMMAND=@{ssh} -variable true -output-type BOTH
+       adams.flow.transformer.CallableTransformer -callable "project log file"
        adams.flow.transformer.StringIndent -indentation " " -num-times 4
        adams.flow.sink.CallableSink -callable log
       adams.flow.control.Trigger -name else
        adams.flow.source.Command -cmd "@{git_cmd} clone @{repo} @{src}/@{dir}" -variable true -output-type BOTH
+       adams.flow.transformer.CallableTransformer -callable "project log file"
        adams.flow.transformer.StringIndent -indentation " " -num-times 4
        adams.flow.sink.CallableSink -callable log
   adams.flow.control.Trigger -name build
    adams.flow.source.Command -cmd @{build_cmd} -working-directory @{project_dir} -variable true -output-type BOTH
+   adams.flow.transformer.CallableTransformer -callable "project log file"
    adams.flow.transformer.StringIndent -indentation " " -num-times 4
    adams.flow.sink.CallableSink -callable log
   adams.flow.control.Trigger -name "copy build output files"
    adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{project_dir} -regexp @{build_output} -sorting SORT_BY_NAME -recursive true" -use-forward-slashes true
    adams.flow.transformer.CopyFile -target-dir @{bin}
+   adams.flow.transformer.CallableTransformer -callable "project log file"
    adams.flow.transformer.StringIndent -indentation " " -num-times 4
    adams.flow.sink.CallableSink -callable log

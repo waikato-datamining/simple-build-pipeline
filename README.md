@@ -23,9 +23,11 @@ execute.flow
 |  |
 |  +- .props files, one per project to build
 |
-+- src  source code gets checked out here
++- src    source code gets checked out here
 |
-+- bin  the build output gets copied here
++- bin    the build output gets copied here
+|
++- log    the build log files are stored here
 ```
 
 ## Scripts
